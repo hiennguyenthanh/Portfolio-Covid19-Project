@@ -1,0 +1,81 @@
+
+------------------------// Change data type //--------------------------------------------------------------------
+
+--- SaleDate shows: YYYY-MM-DD 00:00:00 --> time component is not needed
+--- We need to change SaleDate's type from datetime to date
+
+------ solution
+alter table nashvillehousing
+alter column saledate date
+
+------ alternative solution
+--alter table NashvilleHousing
+--add SaleDateConverted Date;
+
+--update NashvilleHousing
+--set SaleDateConverted = CONVERT(Date,SaleDate) 
+
+
+------------------------// Populate Property Address Data //---------------------------------------------------------
+
+-- Some rows show null PropertyAdress value 
+-- By looking through the table, we see that each ParcelID has a PropertyAddress correspondingly
+--> Use ParcelID to populate PropertyAddress
+
+update a
+set PropertyAddress = ISNULL(a.PropertyAddress, b.PropertyAddress)
+from dbo.NashvilleHousing a join dbo.NashvilleHousing b
+on a.ParcelID = b.ParcelID and a.[UniqueID ] <> b.[UniqueID ]
+and a.PropertyAddress is NULL
+
+------------------------// Break Address to Address, City, State //--------------------------------------------------------
+
+-- 1.PropertyAddress
+------ Use separator ',' to get what we need
+
+alter table nashvillehousing
+add PropertyAddress_ nvarchar(255)
+
+update NashvilleHousing
+set PropertyAddress_ = SUBSTRING(PropertyAddress,-1, CHARINDEX(',', PropertyAddress))
+
+alter table nashvillehousing
+add PropertyCity nvarchar(255)
+
+update NashvilleHousing
+set PropertyCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, len(PropertyAddress)-CHARINDEX(',', PropertyAddress))
+
+------ remove PropertyAddress column as we don't need it anymore
+alter table nashvillehousing
+drop column PropertyAddress
+
+------ rename column PropertyAddress_ to PropertyAddress
+exec sp_rename 'NashvilleHousing.PropertyAddress_', 'PropertyAddress', 'COLUMN'
+
+
+-- 2.OwnerAddress
+------ In this case, I used PARSENAME(), which will parse a string to period (using '.'). So we need to replace ',' by '.' to make the function work
+
+alter table nashvillehousing
+add OwnerAddress_ nvarchar(255)
+update NashvilleHousing
+set OwnerAddress_ = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3)
+
+alter table nashvillehousing
+add OwnerCity nvarchar(255)
+update NashvilleHousing
+set OwnerCity = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2)
+
+alter table nashvillehousing
+add OwnerState nvarchar(255)
+update NashvilleHousing
+set OwnerState = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+
+------ remove OwnerAddress column as we don't need it anymore
+alter table nashvillehousing
+drop column OwnerAddress
+
+------ rename column OwnerAddress_ to OwnerAddress
+exec sp_rename 'NashvilleHousing.OwnerAddress_', 'OwnerAddress', 'COLUMN'
+
+select* from NashvilleHousing
